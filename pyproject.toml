@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "endstone-bounty-system"
+version = "1.2.4"
+description = "Advanced bounty system with safe zones, PvP opt-in/out, and customizable cooldowns"
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["endstone", "plugin", "minecraft", "bounty", "pvp"]
+license = { text = "Apache-2.0" }
+dependencies = [
+    "endstone",
+]
+
+[project.entry-points."endstone"]
+bounty-system = "endstone_bounty_system.bounty_system:BountySystem"
