@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Tuple
 
 from endstone import ColorFormat, Player
 from endstone.command import Command, CommandSender
-from endstone.event import event_handler, PlayerDeathEvent, PlayerJoinEvent, PlayerMoveEvent, ActorDamageEvent
+from endstone.event import event_handler, PlayerDeathEvent, PlayerJoinEvent, PlayerMoveEvent, ActorDamageEvent, PlayerInteractEvent
 from endstone.form import ActionForm, ModalForm, TextInput, Dropdown, Button, Label
 from endstone.plugin import Plugin
 
@@ -55,7 +55,7 @@ class BountySystem(Plugin):
         # Data structures
         self.bounties: Dict[str, Dict] = {}  # {target_name: {total: int, contributors: {placer_name: amount}}}
         self.safe_zones: List[Dict] = []  # [{name, x1, y1, z1, x2, y2, z2, dimension, allow_pvp}]
-        self.player_data: Dict[str, Dict] = {}  # {player_name: {pvp_enabled, last_pvp_toggle, first_join, last_bounty_claimed}}
+        self.player_data: Dict[str, Dict] = {}  # {player_name: {pvp_enabled, last_pvp_toggle, first_join, last_bounty_claimed, used_free_opt_in_waive}}
         # Track recent player attacks for fire damage attribution (fire damage comes after the initial hit)
         self.recent_attacks: Dict[str, Dict] = {}  # victim_name -> {attacker_name, timestamp}
 
@@ -167,7 +167,8 @@ class BountySystem(Plugin):
                 "pvp_enabled": False,
                 "last_pvp_toggle": 0,
                 "first_join": time.time(),
-                "last_bounty_claimed": 0
+                "last_bounty_claimed": 0,
+                "used_free_opt_in_waive": False
             }
 
         # Handle subcommands
@@ -371,7 +372,8 @@ class BountySystem(Plugin):
                 "pvp_enabled": False,
                 "last_pvp_toggle": 0,
                 "first_join": time.time(),
-                "last_bounty_claimed": 0
+                "last_bounty_claimed": 0,
+                "used_free_opt_in_waive": False
             }
 
         player_info = self.player_data[player_name]
@@ -387,6 +389,22 @@ class BountySystem(Plugin):
         time_since_toggle = current_time - last_toggle
 
         if time_since_toggle < cooldown:
+            # Check if this is an opt-in attempt and player hasn't used their free waive
+            if not player_info["pvp_enabled"] and not player_info.get("used_free_opt_in_waive", False):
+                # Give them the free waive!
+                player_info["pvp_enabled"] = True
+                player_info["last_pvp_toggle"] = current_time
+                player_info["used_free_opt_in_waive"] = True
+                self.save_data()
+                player.send_message(
+                    ColorFormat.GREEN + "PvP enabled! You can now participate in bounty hunting."
+                )
+                player.send_message(
+                    ColorFormat.YELLOW + "(First opt-in cooldown waive was FREE!)"
+                )
+                return
+
+            # Otherwise, show cooldown message
             remaining = int(cooldown - time_since_toggle)
             days = remaining // 86400
             hours = (remaining % 86400) // 3600
@@ -878,7 +896,8 @@ class BountySystem(Plugin):
                 "pvp_enabled": False,
                 "last_pvp_toggle": 0,
                 "first_join": time.time(),
-                "last_bounty_claimed": 0
+                "last_bounty_claimed": 0,
+                "used_free_opt_in_waive": False
             }
             self.save_data()
 
@@ -1148,6 +1167,75 @@ class BountySystem(Plugin):
         # This can be used for notifications when entering/leaving safe zones
         # For now, we just check zones during bounty claims
         pass
+
+    @event_handler
+    def on_player_interact(self, event: PlayerInteractEvent) -> None:
+        """Handle PvP altar item interactions"""
+        # Check if player has an item
+        if not event.has_item:
+            return
+
+        # Get the item
+        item = event.item
+        if not item:
+            return
+
+        # Check if it's the PvP altar item (ninjos:pvp_altar)
+        item_type = item.type
+        if item_type != "ninjos:pvp_altar":
+            return
+
+        # Cancel the event to prevent normal item use
+        event.is_cancelled = True
+
+        # Show the PvP altar menu
+        player = event.player
+        self.show_pvp_altar_menu(player)
+
+    def show_pvp_altar_menu(self, player: Player) -> None:
+        """Show the PvP altar menu with bounty system options"""
+        # Initialize player data if needed
+        if player.name not in self.player_data:
+            self.player_data[player.name] = {
+                "pvp_enabled": False,
+                "last_pvp_toggle": 0,
+                "first_join": time.time(),
+                "last_bounty_claimed": 0,
+                "used_free_opt_in_waive": False
+            }
+
+        player_info = self.player_data[player.name]
+        pvp_status = "Enabled" if player_info["pvp_enabled"] else "Disabled"
+
+        form = ActionForm(
+            title="PvP Altar",
+            content=f"{ColorFormat.GOLD}Welcome to the PvP Altar!{ColorFormat.RESET}\n\n"
+                   f"Current PvP Status: {ColorFormat.YELLOW}{pvp_status}{ColorFormat.RESET}\n\n"
+                   f"Choose an option:",
+            buttons=[
+                Button(text="Place Bounty"),
+                Button(text="Waive Protection"),
+                Button(text="Toggle PvP Opt In/Out"),
+                Button(text="View Leaderboard")
+            ]
+        )
+
+        def on_submit(p: Player, selection: int):
+            if selection == 0:
+                # Place Bounty - same as /bounty command
+                self.show_bounty_form(p)
+            elif selection == 1:
+                # Waive Protection - same as /bounty waive command
+                self.show_waive_cooldown_form(p)
+            elif selection == 2:
+                # Toggle PvP Opt In/Out - same as /bounty opt command
+                self.toggle_pvp_opt(p)
+            elif selection == 3:
+                # View Leaderboard - same as /bounty list command
+                self.show_bounty_leaderboard(p)
+
+        form.on_submit = on_submit
+        player.send_form(form)
 
     def is_in_safe_zone(self, x: float, y: float, z: float, dimension: str) -> Tuple[bool, Optional[Dict]]:
         """Check if coordinates are in a safe zone"""
