@@ -1020,8 +1020,9 @@ class BountySystem(Plugin):
             }
 
         # Check if damage is from a projectile (arrow, etc.) shot by a player
-        elif damage_source.causing_actor and isinstance(damage_source.causing_actor, Player):
-            attacker = damage_source.causing_actor
+        # For projectiles: actor = the player who shot it, damaging_actor = the projectile itself
+        elif damage_source.is_indirect and damage_source.actor and isinstance(damage_source.actor, Player):
+            attacker = damage_source.actor
             attacker_name = attacker.name
 
             # Track this attack for fire damage attribution
