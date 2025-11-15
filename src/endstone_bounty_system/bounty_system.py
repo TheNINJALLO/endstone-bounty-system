@@ -1336,10 +1336,6 @@ class BountySystem(Plugin):
 
         # Check if it's the PvP altar item (ninjos:pvp_altar)
         item_type = item.type
-
-        # Debug logging
-        self.logger.info(f"Player interact: item_type={item_type}, action={event.action}")
-
         if item_type != "ninjos:pvp_altar":
             return
 
