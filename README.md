@@ -9,6 +9,7 @@ A comprehensive bounty system plugin for Minecraft Bedrock Edition servers using
 - **Stackable Bounties**: Multiple players can add to the same bounty, increasing the reward
 - **Leaderboard**: View all active bounties sorted by total amount
 - **Automatic Claiming**: Bounties are automatically claimed when the target is killed by another player
+- **User-Friendly Forms**: All interactions use intuitive in-game forms (no complex command syntax required)
 
 ### Safe Zones
 - **No PvP Zones**: Areas where players cannot be killed at all
@@ -45,54 +46,80 @@ A comprehensive bounty system plugin for Minecraft Bedrock Edition servers using
 ### Player Commands
 
 #### `/bounty`
-Opens the bounty placement form where you can select a target player and set a bounty amount.
+Opens the bounty placement form where you can:
+- Select a target player from the dropdown (only shows players with PvP enabled)
+- Enter the bounty amount
+- Confirm the bounty placement
+
+**Requirements**: You must have PvP enabled to place bounties.
 
 **Permission**: `bounty.use` (default: everyone)
 
 #### `/bounty list`
-Displays the bounty leaderboard showing all active bounties, their amounts, and contributors.
+Displays the bounty leaderboard showing:
+- All active bounties
+- Total bounty amounts
+- List of contributors and their individual contributions
 
 **Permission**: `bounty.use` (default: everyone)
 
 #### `/bounty opt`
-Toggle your PvP opt-in/opt-out status. Subject to cooldowns.
+Toggle your PvP opt-in/opt-out status.
+- Shows your current PvP status
+- Displays remaining cooldown time if applicable
+- Subject to cooldowns (1 day to opt-in, 3 days to opt-out by default)
+
+**Permission**: `bounty.use` (default: everyone)
+
+#### `/bounty waive`
+Opens a form to waive protection periods early by paying a fee:
+- **Waive New Player Protection**: Pay to remove new player protection early (default: 1000 coins)
+- **Waive Post-Bounty Protection**: Pay to remove post-bounty protection early (default: 500 coins)
 
 **Permission**: `bounty.use` (default: everyone)
 
 ### Admin Commands (Operator Only)
 
-#### `/safezone add <name> <x1> <y1> <z1> <x2> <y2> <z2> <type>`
-Creates a new safe zone with the specified coordinates.
+#### `/bounty config`
+Opens the server configuration form to adjust plugin settings:
+- **New Player Protection**: Duration in days (default: 3 days)
+- **Post-Bounty Protection**: Duration in days (default: 3 days)
+- **PvP Opt-In Cooldown**: Duration in days (default: 1 day)
+- **PvP Opt-Out Cooldown**: Duration in days (default: 3 days)
+- **New Player Waiver Cost**: Cost to waive new player protection (default: 1000 coins)
+- **Death Protection Waiver Cost**: Cost to waive post-bounty protection (default: 500 coins)
+- **Minimum Bounty Amount**: Minimum bounty that can be placed (default: 100 coins)
+- **Force PvP Enabled**: Toggle Force PvP mode on/off
 
-**Parameters**:
-- `name`: Unique name for the safe zone
-- `x1 y1 z1`: First corner coordinates
-- `x2 y2 z2`: Second corner coordinates (opposite corner)
-- `type`: Either `no_pvp` or `pvp_no_bounty`
-  - `no_pvp`: Players cannot be killed in this zone
-  - `pvp_no_bounty`: PvP is allowed but bounties cannot be claimed
-
-**Example**:
-```
-/safezone add spawn -100 64 -100 100 100 100 no_pvp
-```
+All settings are saved to `config.json` and persist across server restarts.
 
 **Permission**: `bounty.admin` (default: op)
 
-#### `/safezone remove <name>`
-Removes a safe zone by name.
-
-**Example**:
-```
-/safezone remove spawn
-```
+#### `/safezone`
+Opens the Safe Zone Management menu with the following options:
 
 **Permission**: `bounty.admin` (default: op)
 
-#### `/safezone list`
-Lists all configured safe zones with their coordinates and types.
+##### Create New Zone
+Opens a form to create a new safe zone:
+- **Zone Name**: Unique identifier for the zone (e.g., spawn, arena, shop)
+- **Corner 1 Coordinates**: X, Y, Z coordinates for the first corner
+- **Corner 2 Coordinates**: X, Y, Z coordinates for the opposite corner
+- **Zone Type**: Choose between:
+  - `No PvP`: Players cannot be killed in this zone at all
+  - `PvP Allowed (No Bounties)`: PvP is allowed but bounties cannot be claimed
 
-**Permission**: `bounty.admin` (default: op)
+The form automatically shows your current position for convenience when setting coordinates.
+
+##### Remove Zone
+Opens a dropdown menu to select and remove an existing safe zone.
+
+##### List All Zones
+Displays all configured safe zones with their:
+- Name
+- Coordinates (both corners)
+- Zone type (No PvP or PvP Allowed)
+- Dimension
 
 ## Configuration
 
