@@ -55,7 +55,7 @@ class BountySystem(Plugin):
         # Data structures
         self.bounties: Dict[str, Dict] = {}  # {target_name: {total: int, contributors: {placer_name: amount}}}
         self.safe_zones: List[Dict] = []  # [{name, x1, y1, z1, x2, y2, z2, dimension, allow_pvp}]
-        self.player_data: Dict[str, Dict] = {}  # {player_name: {pvp_enabled, last_pvp_toggle, first_join, last_bounty_claimed, used_free_opt_in_waive}}
+        self.player_data: Dict[str, Dict] = {}  # {player_name: {pvp_enabled, last_pvp_toggle, first_join, last_bounty_claimed, used_free_opt_in}}
         # Track recent player attacks for fire damage attribution (fire damage comes after the initial hit)
         self.recent_attacks: Dict[str, Dict] = {}  # victim_name -> {attacker_name, timestamp}
 
@@ -168,7 +168,7 @@ class BountySystem(Plugin):
                 "last_pvp_toggle": 0,
                 "first_join": time.time(),
                 "last_bounty_claimed": 0,
-                "used_free_opt_in_waive": False
+                "used_free_opt_in": False
             }
 
         # Handle subcommands
@@ -222,21 +222,24 @@ class BountySystem(Plugin):
         # Check if placer has PvP enabled
         player_name = player.name
         if player_name not in self.player_data or not self.player_data[player_name].get("pvp_enabled", False):
-            player.send_message(ColorFormat.RED + "You must have PvP enabled to place bounties!")
-            player.send_message(ColorFormat.YELLOW + "Use /bounty opt to enable PvP.")
+            player.send_message(ColorFormat.RED + "✗ You must be OPTED IN to PvP to place bounties!")
+            player.send_message(ColorFormat.YELLOW + "Use /bounty opt or the PvP Altar to opt in.")
             return
 
         # Get list of online players (excluding self) who have PvP enabled
         online_players = []
+        online_players_display = []
         for p in self.server.online_players:
             if p.name != player.name:
                 # Only show players who have PvP enabled
                 if p.name in self.player_data and self.player_data[p.name].get("pvp_enabled", False):
                     online_players.append(p.name)
+                    # Add visual indicator that they're opted in
+                    online_players_display.append(f"{p.name} (✓ Opted In)")
 
         if len(online_players) == 0:
             player.send_message(ColorFormat.RED + "No other players with PvP enabled are online!")
-            player.send_message(ColorFormat.YELLOW + "You can only place bounties on players who have opted into PvP.")
+            player.send_message(ColorFormat.YELLOW + "You can only place bounties on players who are OPTED IN to PvP.")
             return
 
         # Get player's current money
@@ -246,8 +249,8 @@ class BountySystem(Plugin):
             title=f"Place a Bounty (Balance: {current_money})",
             controls=[
                 Dropdown(
-                    label="Target Player",
-                    options=online_players,
+                    label="Target Player (Only Opted-In Players Shown)",
+                    options=online_players_display,
                     default_index=0
                 ),
                 TextInput(
@@ -373,14 +376,27 @@ class BountySystem(Plugin):
                 "last_pvp_toggle": 0,
                 "first_join": time.time(),
                 "last_bounty_claimed": 0,
-                "used_free_opt_in_waive": False
+                "used_free_opt_in": False
             }
 
         player_info = self.player_data[player_name]
         current_time = time.time()
         last_toggle = player_info["last_pvp_toggle"]
 
-        # Check cooldown
+        # Check if this is the first time opting in (FREE!)
+        if not player_info["pvp_enabled"] and not player_info.get("used_free_opt_in", False):
+            # First opt-in is FREE - no cooldown check!
+            player_info["pvp_enabled"] = True
+            player_info["last_pvp_toggle"] = current_time
+            player_info["used_free_opt_in"] = True
+            self.save_data()
+            player.send_message(ColorFormat.GREEN + "✓ PvP OPTED IN!")
+            player.send_message(ColorFormat.YELLOW + "You can now place and claim bounties.")
+            player.send_message(ColorFormat.YELLOW + "Other players can place bounties on you.")
+            player.send_message(ColorFormat.GOLD + "(First opt-in was FREE!)")
+            return
+
+        # Check cooldown for all other toggles
         if player_info["pvp_enabled"]:
             cooldown = self.settings['pvp_opt_out_cooldown']
         else:
@@ -389,30 +405,22 @@ class BountySystem(Plugin):
         time_since_toggle = current_time - last_toggle
 
         if time_since_toggle < cooldown:
-            # Check if this is an opt-in attempt and player hasn't used their free waive
-            if not player_info["pvp_enabled"] and not player_info.get("used_free_opt_in_waive", False):
-                # Give them the free waive!
-                player_info["pvp_enabled"] = True
-                player_info["last_pvp_toggle"] = current_time
-                player_info["used_free_opt_in_waive"] = True
-                self.save_data()
-                player.send_message(
-                    ColorFormat.GREEN + "PvP enabled! You can now participate in bounty hunting."
-                )
-                player.send_message(
-                    ColorFormat.YELLOW + "(First opt-in cooldown waive was FREE!)"
-                )
-                return
-
-            # Otherwise, show cooldown message
+            # Show cooldown message
             remaining = int(cooldown - time_since_toggle)
             days = remaining // 86400
             hours = (remaining % 86400) // 3600
             minutes = (remaining % 3600) // 60
-            player.send_message(
-                ColorFormat.RED + f"PvP toggle on cooldown! "
-                f"Wait {days}d {hours}h {minutes}m"
-            )
+
+            if player_info["pvp_enabled"]:
+                player.send_message(
+                    ColorFormat.RED + f"Opt-out cooldown active! "
+                    f"Wait {days}d {hours}h {minutes}m or use /bounty waive"
+                )
+            else:
+                player.send_message(
+                    ColorFormat.RED + f"Opt-in cooldown active! "
+                    f"Wait {days}d {hours}h {minutes}m or use /bounty waive"
+                )
             return
 
         # Toggle PvP status
@@ -422,9 +430,13 @@ class BountySystem(Plugin):
         self.save_data()
 
         if player_info["pvp_enabled"]:
-            player.send_message(ColorFormat.GREEN + "PvP enabled! You can now participate in bounty hunting.")
+            player.send_message(ColorFormat.GREEN + "✓ PvP OPTED IN!")
+            player.send_message(ColorFormat.YELLOW + "You can now place and claim bounties.")
+            player.send_message(ColorFormat.YELLOW + "Other players can place bounties on you.")
         else:
-            player.send_message(ColorFormat.YELLOW + "PvP disabled! You are now protected from bounty hunters.")
+            player.send_message(ColorFormat.RED + "✗ PvP OPTED OUT!")
+            player.send_message(ColorFormat.YELLOW + "You are now protected from bounty hunters.")
+            player.send_message(ColorFormat.YELLOW + "You cannot place or claim bounties while opted out.")
 
     def show_waive_cooldown_form(self, player: Player) -> None:
         """Show form to waive protection cooldowns"""
@@ -452,7 +464,6 @@ class BountySystem(Plugin):
         # Check PvP toggle cooldowns
         last_toggle = player_info.get("last_pvp_toggle", 0)
         is_pvp_enabled = player_info.get("pvp_enabled", False)
-        used_free_waive = player_info.get("used_free_opt_in_waive", False)
 
         # Check opt-in cooldown (if player is NOT opted in and has a cooldown)
         opt_in_cooldown = self.settings['pvp_opt_in_cooldown']
@@ -470,7 +481,8 @@ class BountySystem(Plugin):
         if has_new_player_protection:
             days = int(new_player_remaining // 86400)
             hours = int((new_player_remaining % 86400) // 3600)
-            content += f"{ColorFormat.YELLOW}New Player Protection:{ColorFormat.RESET}\n"
+            content += f"{ColorFormat.YELLOW}⚠ New Player Protection:{ColorFormat.RESET}\n"
+            content += f"  {ColorFormat.GRAY}You are a new player!{ColorFormat.RESET}\n"
             content += f"  Remaining: {days}d {hours}h\n"
             content += f"  Cost to waive: {self.settings['new_player_waiver_cost']} coins\n\n"
 
@@ -487,10 +499,7 @@ class BountySystem(Plugin):
             minutes = int((opt_in_remaining % 3600) // 60)
             content += f"{ColorFormat.YELLOW}PvP Opt-In Cooldown:{ColorFormat.RESET}\n"
             content += f"  Remaining: {days}d {hours}h {minutes}m\n"
-            if not used_free_waive:
-                content += f"  Cost to waive: {ColorFormat.GREEN}FREE (First time!){ColorFormat.RESET}\n\n"
-            else:
-                content += f"  Cost to waive: {self.settings['new_player_waiver_cost']} coins\n\n"
+            content += f"  Cost to waive: {self.settings['new_player_waiver_cost']} coins\n\n"
 
         if has_opt_out_cooldown:
             days = int(opt_out_remaining // 86400)
@@ -515,10 +524,7 @@ class BountySystem(Plugin):
         if has_post_bounty_protection:
             buttons.append(Button(text=f"Waive Post-Death Protection ({self.settings['death_protection_waiver_cost']} coins)"))
         if has_opt_in_cooldown:
-            if not used_free_waive:
-                buttons.append(Button(text=f"Waive Opt-In Cooldown (FREE!)"))
-            else:
-                buttons.append(Button(text=f"Waive Opt-In Cooldown ({self.settings['new_player_waiver_cost']} coins)"))
+            buttons.append(Button(text=f"Waive Opt-In Cooldown ({self.settings['new_player_waiver_cost']} coins)"))
         if has_opt_out_cooldown:
             buttons.append(Button(text=f"Waive Opt-Out Cooldown ({self.settings['death_protection_waiver_cost']} coins)"))
 
@@ -629,6 +635,7 @@ class BountySystem(Plugin):
         player_name = player.name
         player_info = self.player_data[player_name]
         current_time = time.time()
+        cost = self.settings['new_player_waiver_cost']
 
         # Check if player is already opted in
         if player_info.get("pvp_enabled", False):
@@ -644,45 +651,25 @@ class BountySystem(Plugin):
             player.send_message(ColorFormat.YELLOW + "You don't have an opt-in cooldown! Use /bounty opt to enable PvP.")
             return
 
-        # Check if this is their first waive (free)
-        used_free_waive = player_info.get("used_free_opt_in_waive", False)
-
-        if not used_free_waive:
-            # First waive is FREE!
-            player_info["pvp_enabled"] = True
-            player_info["last_pvp_toggle"] = current_time
-            player_info["used_free_opt_in_waive"] = True
-            self.save_data()
-
+        # Check if player has enough money
+        if not self.has_money(player, cost):
+            current_money = self.get_money(player)
             player.send_message(
-                ColorFormat.GREEN + "Opt-in cooldown waived for FREE! PvP enabled!"
+                ColorFormat.RED + f"Insufficient funds! You have {current_money} but need {cost} coins."
             )
-            player.send_message(
-                ColorFormat.YELLOW + "(First opt-in cooldown waive was free!)"
-            )
-        else:
-            # Subsequent waives cost money
-            cost = self.settings['new_player_waiver_cost']
+            return
 
-            # Check if player has enough money
-            if not self.has_money(player, cost):
-                current_money = self.get_money(player)
-                player.send_message(
-                    ColorFormat.RED + f"Insufficient funds! You have {current_money} but need {cost} coins."
-                )
-                return
+        # Deduct money
+        self.deduct_money(player, cost)
 
-            # Deduct money
-            self.deduct_money(player, cost)
+        # Enable PvP
+        player_info["pvp_enabled"] = True
+        player_info["last_pvp_toggle"] = current_time
+        self.save_data()
 
-            # Enable PvP
-            player_info["pvp_enabled"] = True
-            player_info["last_pvp_toggle"] = current_time
-            self.save_data()
-
-            player.send_message(
-                ColorFormat.GREEN + f"Opt-in cooldown waived! PvP enabled! (-{cost} coins)"
-            )
+        player.send_message(
+            ColorFormat.GREEN + f"Opt-in cooldown waived! PvP enabled! (-{cost} coins)"
+        )
 
     def waive_opt_out_cooldown(self, player: Player) -> None:
         """Waive opt-out cooldown to disable PvP immediately"""
@@ -1361,38 +1348,85 @@ class BountySystem(Plugin):
                 "last_pvp_toggle": 0,
                 "first_join": time.time(),
                 "last_bounty_claimed": 0,
-                "used_free_opt_in_waive": False
+                "used_free_opt_in": False
             }
 
         player_info = self.player_data[player.name]
-        pvp_status = "Enabled" if player_info["pvp_enabled"] else "Disabled"
+        is_pvp_enabled = player_info["pvp_enabled"]
+        current_time = time.time()
+
+        # Check new player status
+        first_join = player_info["first_join"]
+        new_player_protection = self.settings['new_player_protection']
+        new_player_remaining = new_player_protection - (current_time - first_join)
+        is_new_player = new_player_remaining > 0
+
+        # Build status display
+        if is_pvp_enabled:
+            pvp_status = f"{ColorFormat.GREEN}✓ OPTED IN{ColorFormat.RESET}"
+            pvp_description = "You can participate in bounty hunting"
+        else:
+            pvp_status = f"{ColorFormat.RED}✗ OPTED OUT{ColorFormat.RESET}"
+            pvp_description = "You are protected from PvP"
+
+        # Build content with clear status
+        content = f"{ColorFormat.GOLD}Welcome to the PvP Altar!{ColorFormat.RESET}\n\n"
+        content += f"PvP Status: {pvp_status}\n"
+        content += f"{ColorFormat.GRAY}{pvp_description}{ColorFormat.RESET}\n"
+
+        # Show new player status only if still protected
+        if is_new_player:
+            days = int(new_player_remaining // 86400)
+            hours = int((new_player_remaining % 86400) // 3600)
+            content += f"\n{ColorFormat.YELLOW}⚠ New Player Protection:{ColorFormat.RESET}\n"
+            content += f"{ColorFormat.GRAY}Protected for {days}d {hours}h more{ColorFormat.RESET}\n"
+
+        content += f"\n{ColorFormat.GOLD}Choose an option:{ColorFormat.RESET}"
+
+        # Build buttons based on PvP status
+        buttons = []
+
+        # Only show "Place Bounty" if player is opted in
+        if is_pvp_enabled:
+            buttons.append(Button(text="Place Bounty"))
+
+        buttons.append(Button(text="Waive Protection"))
+        buttons.append(Button(text="Toggle PvP Opt In/Out"))
+        buttons.append(Button(text="View Leaderboard"))
 
         form = ActionForm(
             title="PvP Altar",
-            content=f"{ColorFormat.GOLD}Welcome to the PvP Altar!{ColorFormat.RESET}\n\n"
-                   f"Current PvP Status: {ColorFormat.YELLOW}{pvp_status}{ColorFormat.RESET}\n\n"
-                   f"Choose an option:",
-            buttons=[
-                Button(text="Place Bounty"),
-                Button(text="Waive Protection"),
-                Button(text="Toggle PvP Opt In/Out"),
-                Button(text="View Leaderboard")
-            ]
+            content=content,
+            buttons=buttons
         )
 
         def on_submit(p: Player, selection: int):
-            if selection == 0:
-                # Place Bounty - same as /bounty command
-                self.show_bounty_form(p)
-            elif selection == 1:
-                # Waive Protection - same as /bounty waive command
+            # Adjust button index based on whether "Place Bounty" is shown
+            button_index = 0
+
+            # Place Bounty (only if opted in)
+            if is_pvp_enabled:
+                if selection == button_index:
+                    self.show_bounty_form(p)
+                    return
+                button_index += 1
+
+            # Waive Protection
+            if selection == button_index:
                 self.show_waive_cooldown_form(p)
-            elif selection == 2:
-                # Toggle PvP Opt In/Out - same as /bounty opt command
+                return
+            button_index += 1
+
+            # Toggle PvP Opt In/Out
+            if selection == button_index:
                 self.toggle_pvp_opt(p)
-            elif selection == 3:
-                # View Leaderboard - same as /bounty list command
+                return
+            button_index += 1
+
+            # View Leaderboard
+            if selection == button_index:
                 self.show_bounty_leaderboard(p)
+                return
 
         form.on_submit = on_submit
         player.send_form(form)
