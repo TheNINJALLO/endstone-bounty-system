@@ -67,6 +67,8 @@ class BountySystem(Plugin):
             "post_bounty_protection": 259200,  # 3 days in seconds
             "new_player_waiver_cost": 1000,  # Cost to waive new player protection
             "death_protection_waiver_cost": 500,  # Cost to waive post-bounty protection
+            "opt_in_waiver_cost": 1000,  # Cost to waive opt-in cooldown
+            "opt_out_waiver_cost": 500,  # Cost to waive opt-out cooldown
             "min_bounty_amount": 100,
             "money_objective": "Money",
             "force_pvp_enabled": False  # If true, all players can attack each other (safe zones still apply)
@@ -499,7 +501,7 @@ class BountySystem(Plugin):
             minutes = int((opt_in_remaining % 3600) // 60)
             content += f"{ColorFormat.YELLOW}PvP Opt-In Cooldown:{ColorFormat.RESET}\n"
             content += f"  Remaining: {days}d {hours}h {minutes}m\n"
-            content += f"  Cost to waive: {self.settings['new_player_waiver_cost']} coins\n\n"
+            content += f"  Cost to waive: {self.settings['opt_in_waiver_cost']} coins\n\n"
 
         if has_opt_out_cooldown:
             days = int(opt_out_remaining // 86400)
@@ -507,7 +509,7 @@ class BountySystem(Plugin):
             minutes = int((opt_out_remaining % 3600) // 60)
             content += f"{ColorFormat.YELLOW}PvP Opt-Out Cooldown:{ColorFormat.RESET}\n"
             content += f"  Remaining: {days}d {hours}h {minutes}m\n"
-            content += f"  Cost to waive: {self.settings['death_protection_waiver_cost']} coins\n\n"
+            content += f"  Cost to waive: {self.settings['opt_out_waiver_cost']} coins\n\n"
 
         if not has_new_player_protection and not has_post_bounty_protection and not has_opt_in_cooldown and not has_opt_out_cooldown:
             player.send_message(ColorFormat.YELLOW + "You have no active protections or cooldowns to waive!")
@@ -524,9 +526,9 @@ class BountySystem(Plugin):
         if has_post_bounty_protection:
             buttons.append(Button(text=f"Waive Post-Death Protection ({self.settings['death_protection_waiver_cost']} coins)"))
         if has_opt_in_cooldown:
-            buttons.append(Button(text=f"Waive Opt-In Cooldown ({self.settings['new_player_waiver_cost']} coins)"))
+            buttons.append(Button(text=f"Waive Opt-In Cooldown ({self.settings['opt_in_waiver_cost']} coins)"))
         if has_opt_out_cooldown:
-            buttons.append(Button(text=f"Waive Opt-Out Cooldown ({self.settings['death_protection_waiver_cost']} coins)"))
+            buttons.append(Button(text=f"Waive Opt-Out Cooldown ({self.settings['opt_out_waiver_cost']} coins)"))
 
         form = ActionForm(
             title="Waive Protection/Cooldowns",
@@ -635,7 +637,7 @@ class BountySystem(Plugin):
         player_name = player.name
         player_info = self.player_data[player_name]
         current_time = time.time()
-        cost = self.settings['new_player_waiver_cost']
+        cost = self.settings['opt_in_waiver_cost']
 
         # Check if player is already opted in
         if player_info.get("pvp_enabled", False):
@@ -676,7 +678,7 @@ class BountySystem(Plugin):
         player_name = player.name
         player_info = self.player_data[player_name]
         current_time = time.time()
-        cost = self.settings['death_protection_waiver_cost']
+        cost = self.settings['opt_out_waiver_cost']
 
         # Check if player is already opted out
         if not player_info.get("pvp_enabled", False):
@@ -748,6 +750,16 @@ class BountySystem(Plugin):
                     default_value=str(self.settings['death_protection_waiver_cost'])
                 ),
                 TextInput(
+                    label="Opt-In Cooldown Waiver Cost",
+                    placeholder="1000",
+                    default_value=str(self.settings['opt_in_waiver_cost'])
+                ),
+                TextInput(
+                    label="Opt-Out Cooldown Waiver Cost",
+                    placeholder="500",
+                    default_value=str(self.settings['opt_out_waiver_cost'])
+                ),
+                TextInput(
                     label="Minimum Bounty Amount",
                     placeholder="100",
                     default_value=str(self.settings['min_bounty_amount'])
@@ -782,13 +794,16 @@ class BountySystem(Plugin):
                 pvp_opt_out_days = int(values[3]) if values[3] and str(values[3]).strip() else 3
                 new_player_cost = int(values[4]) if values[4] and str(values[4]).strip() else 1000
                 death_cost = int(values[5]) if values[5] and str(values[5]).strip() else 500
-                min_bounty = int(values[6]) if values[6] and str(values[6]).strip() else 100
-                force_pvp = values[7] == 1
+                opt_in_cost = int(values[6]) if values[6] and str(values[6]).strip() else 1000
+                opt_out_cost = int(values[7]) if values[7] and str(values[7]).strip() else 500
+                min_bounty = int(values[8]) if values[8] and str(values[8]).strip() else 100
+                force_pvp = values[9] == 1
 
                 # Validate values
                 if (new_player_protection_days < 0 or post_death_protection_days < 0 or
                     pvp_opt_in_days < 0 or pvp_opt_out_days < 0 or
-                    new_player_cost < 0 or death_cost < 0 or min_bounty < 0):
+                    new_player_cost < 0 or death_cost < 0 or
+                    opt_in_cost < 0 or opt_out_cost < 0 or min_bounty < 0):
                     p.send_message(ColorFormat.RED + "All values must be positive!")
                     return
 
@@ -799,6 +814,8 @@ class BountySystem(Plugin):
                 self.settings['pvp_opt_out_cooldown'] = pvp_opt_out_days * 86400
                 self.settings['new_player_waiver_cost'] = new_player_cost
                 self.settings['death_protection_waiver_cost'] = death_cost
+                self.settings['opt_in_waiver_cost'] = opt_in_cost
+                self.settings['opt_out_waiver_cost'] = opt_out_cost
                 self.settings['min_bounty_amount'] = min_bounty
 
                 # Handle force PvP toggle

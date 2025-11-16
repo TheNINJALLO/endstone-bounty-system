@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endstone-bounty-system"
-version = "1.3.2"
+version = "1.3.3"
 description = "Advanced bounty system with safe zones, PvP opt-in/out, and customizable cooldowns"
 readme = "README.md"
 requires-python = ">=3.9"
