@@ -20,8 +20,9 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> &bull;
-  <a href="#compatibility">Compatibility</a> &bull;
+  <a href="#what-it-does">What it does</a> &bull;
+  <a href="#how-to-use">How to use</a> &bull;
+  <a href="#commands-and-permissions">Commands</a> &bull;
   <a href="#install">Install</a> &bull;
   <a href="https://github.com/TheNINJALLO/endstone-bounty-system/releases">Releases</a>
 </p>
@@ -30,9 +31,24 @@
 
 Advanced bounty system with safe zones, PvP opt-in/out, and customizable cooldowns. This release is aligned with Endstone 0.11.8 and Minecraft Bedrock Dedicated Server 1.26.40, and is distributed as a Python wheel for direct installation in an Endstone server.
 
-## Capabilities
+## What it does
 
--
+- Lets players fund and claim bounties using the server's `Money` scoreboard objective.
+- Adds separate PvP and bounty opt-in states, protection periods, cooldowns, and configurable safe zones.
+- Provides form-based player and operator workflows with persistent bounty data.
+
+## How to use
+
+1. Create or verify the `Money` scoreboard objective, then start the server to generate the bounty configuration.
+2. Players run `/bounty` to place a bounty, `/bounty list` to view leaders, and the opt commands to control participation.
+3. Operators use `/bounty config`, `/bounty remove`, and `/safezone` to configure rules and protected areas.
+
+## Commands and permissions
+
+| Command / usage | What it does | Access |
+|---|---|---|
+| `/bounty`<br>`/bounty list`<br>`/bounty opt`<br>`/bounty bopt`<br>`/bounty waive`<br>`/bounty config`<br>`/bounty remove` | Open bounty menu or manage bounties | All players; `bounty.admin` for `config` and `remove` |
+| `/safezone` | Manage safe zones | `bounty.admin` |
 
 ## Compatibility
 
