@@ -29,7 +29,6 @@ src/endstone_bounty_system.egg-info/SOURCES.txt
 src/endstone_bounty_system.egg-info/top_level.txt
 build/lib/endstone_bounty_system/__init__.py
 build/lib/endstone_bounty_system/bounty_system.py
-pyproject.toml
 dist/endstone_bounty_system-1.2.8-py3-none-any.whl
 dist/endstone_bounty_system-1.2.7-py3-none-any.whl
 dist/endstone_bounty_system-1.2.6-py3-none-any.whl
