@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endstone-bounty-system"
-version = "1.4.3"
+version = "1.4.4"
 description = "Advanced bounty system with safe zones, PvP opt-in/out, and customizable cooldowns"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 keywords = ["endstone", "plugin", "minecraft", "bounty", "pvp"]
 license = { text = "Apache-2.0" }
 dependencies = [
-    "endstone>=0.11.9,<0.12",
+    "endstone>=0.11.16,<0.12",
 ]
 
 [project.entry-points."endstone"]
